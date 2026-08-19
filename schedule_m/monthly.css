@@ -29,9 +29,17 @@ html,body {
 
 /* Day: Specific ================================================ */
 
-.fc-day-fri {
-  width: 35%;
+.fc-day-mon {
+  width: 20%;
 }
+
+.fc-day-tue {
+  width: 20%;
+}
+
+/* .fc-day-mon {
+  width: 35%;
+} */
 
 
 /* Dates: Align ================================================ */
@@ -59,7 +67,7 @@ html,body {
   margin-block-end: 0;
   padding-inline-start: 0;
   list-style: none;
-  padding-left: 15px;
+  padding-left: 3px;
   word-wrap: break-word;
 }
 
@@ -161,11 +169,15 @@ html,body {
     font-weight: normal;
   }
 
-  .fc-day-mon {
+  /* .fc-day-mon {
     display: none;
-  }
+  } */
 
-  .fc-day-tue {
+  /* .fc-day-tue {
+    display: none;
+  } */
+
+  .fc-day-wed {
     display: none;
   }
 
