@@ -1,7 +1,9 @@
 :root {
-  /* --bg: #19b9e5; */
-  --bg: #ff996b;
-  --bg-gradient: linear-gradient(0deg, rgba(25, 185, 229, 0) 0%, rgba(255, 153, 107, 1) 50%, rgba(255, 153, 107, 1) 100%);
+  /* --bg: #ff996b;
+  --bg-gradient: linear-gradient(0deg, rgba(25, 185, 229, 0) 0%, rgba(255, 153, 107, 1) 50%, rgba(255, 153, 107, 1) 100%); */
+  
+  --bg: #ffa872;
+  --bg-gradient: linear-gradient(0deg, rgba(25, 185, 229, 0) 0%, rgba(255, 168, 114, 1) 50%, rgba(255, 168, 114, 1) 100%);
   
   --fc-today-bg-color: transparent;
   --fc-event-bg-color: transparent;
