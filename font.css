@@ -12,6 +12,15 @@
   src: url('./font/FKGroteskSemiMonoTrial-Regular.woff2') format('woff2');
 }
 
+@font-face {
+  font-family: 'FKGroteskSemiMonoTrial-Medium';
+  src: url('./font/FKGroteskSemiMonoTrial-Medium.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'ABCArizonaMix-Regular';
+  src: url('./font/ABCArizonaMix-Regular.otf') format('opentype');
+}
 
 /* text: align ================================================ */
 

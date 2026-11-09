@@ -1,0 +1,567 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Draw Dawn Maker</title>
+  <link rel="shortcut icon" href="favicon.svg">
+  <link rel="stylesheet" href="/font.css">
+  <style>
+    html,body{
+      margin: 0;
+      padding: 0;
+      font-family: 'FKGroteskSemiMonoTrial-Medium';
+      font-size: 13px;
+      letter-spacing: 0.027em;
+      text-transform: uppercase;
+    }
+    body { 
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    button {
+      font-family: 'FKGroteskSemiMonoTrial-Medium';
+      font-size: 13px;
+      letter-spacing: 0.027em;
+      text-transform: uppercase;
+      padding: 2px 5px;
+      border: 1px solid #222;
+      border-radius: 4px;
+      background: white;
+      cursor: pointer;
+      margin-bottom: 6px;
+    }
+
+    button:disabled {
+      background-color: #e0e0e0;
+      color: #a0a0a0;
+      border: 1px solid #929292;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    header {
+      font-family: 'ABCArizonaMix-Regular';
+      font-size: 40px;
+      text-transform: capitalize;
+    }
+
+    /* header, .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+    header { justify-content: space-between; margin-bottom: 16px; }
+    h1 { font-size: 16px; margin: 0; } */
+    /* button { padding: 6px 12px; } */
+    #upload {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      clip-path: inset(50%);
+    }
+
+    .upload-button {
+      padding: 2px 5px;
+      border: 1px solid #222;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 6px;
+    }
+
+    /* #upload:focus-visible + .upload-button {
+      outline: 2px solid #222;
+      outline-offset: 3px;
+    } */
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 3;
+    }
+
+    .sliders {
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      /* display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+      gap: 12px 20px;
+      width: 100%; */
+      max-width: 920px;
+      z-index: 3;
+    }
+    .slider-label { display: flex; justify-content: space-between; gap: 8px; }
+    .sliders input { display: block; width: 100%; margin: 0 0 15px 0; }
+    output { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    #status { 
+      display: none;
+     }
+    .pattern-preview {
+      display: block;
+      position: fixed;
+      bottom: 0;
+      left: 50%;
+      transform: translate(-50%, 0);
+      width: 100%;
+      height: auto;
+      /* max-height: 80vh; */
+      object-fit: contain;
+      /* background: conic-gradient(#eee 25%, #fff 0 50%, #eee 0 75%, #fff 0) 0 0 / 16px 16px; */
+    }
+    .pattern-preview[hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <!-- Turning Pages Since 2012 -->
+    <!-- <span>Drawn By Halim Lee</span> -->
+  </header>
+  <div class="controls">
+    <input id="upload" type="file" accept=".svg,image/svg+xml">
+    <label for="upload" class="upload-button">Upload SVG</label>
+
+    <button id="downloadPng" type="button" style="display: none;" disabled>Download PNG</button>
+    <button id="downloadSvg" type="button" disabled>Download SVG</button>
+    <button id="playAnimation" type="button" disabled>Play Animation</button>
+    <button id="downloadAnimation" type="button" disabled>Download Animation SVG</button>
+  </div>
+  <div class="sliders" role="group" aria-label="Radial pattern controls">
+    <div>
+      <div class="slider-label"><label for="imageSize">Icon size</label><output for="imageSize">80 px</output></div>
+      <input id="imageSize" type="range" min="10" max="240" value="80" data-prefix="" data-unit=" px">
+    </div>
+    <div>
+      <div class="slider-label"><label for="spacing">Icon spacing</label><output for="spacing">15 px</output></div>
+      <input id="spacing" type="range" min="5" max="100" value="15" data-prefix="" data-unit=" px">
+    </div>
+    <div>
+      <div class="slider-label"><label for="rotationJitter">Random rotation</label><output for="rotationJitter">±30°</output></div>
+      <input id="rotationJitter" type="range" min="0" max="180" value="30" data-prefix="±" data-unit="°">
+    </div>
+  </div>
+  <p id="status" role="status"></p>
+  <canvas id="preview" class="pattern-preview" role="img" aria-label="Radial pattern preview"></canvas>
+  <img id="animationPreview" class="pattern-preview" alt="Animated radial pattern" hidden>
+
+  <script>
+  {
+    const pngScale = 2;        // PNG resolution multiplier
+
+    const rayLengths = [501, 491.6, 481.3, 473.3, 470.1, 473.3, 481.3, 491.6, 500];
+    const centerY = 470;
+    const angleStep = 180 / (rayLengths.length - 1);
+    const animationTiming = {
+      delay: 200,
+      fade: 200,
+      sweep: 1500,
+      hold: 2000,
+      fadeOutDelay: 50,
+    };
+    const animationDuration = animationTiming.delay + animationTiming.sweep * 2
+      + animationTiming.hold + animationTiming.fadeOutDelay + animationTiming.fade;
+    const sliders = Array.from(document.querySelectorAll(".sliders input"));
+    const iconSizeSlider = document.querySelector("#imageSize");
+
+    function readSettings() {
+      const settings = Object.fromEntries(sliders.map((input) => [input.id, input.valueAsNumber]));
+      const padding = Math.ceil(settings.imageSize / Math.SQRT2 + 3);
+      const viewTop = Math.floor(centerY - Math.max(...rayLengths)) - padding;
+      return {
+        ...settings,
+        left: -padding,
+        viewTop,
+        width: 1000 + 2 * padding,
+        height: centerY + padding - viewTop,
+      };
+    }
+
+    const upload = document.querySelector("#upload");
+    const preview = document.querySelector("#preview");
+    const pngButton = document.querySelector("#downloadPng");
+    const svgButton = document.querySelector("#downloadSvg");
+    const status = document.querySelector("#status");
+    const playButton = document.querySelector("#playAnimation");
+    const animationButton = document.querySelector("#downloadAnimation");
+    const animationPreview = document.querySelector("#animationPreview");
+    let playbackUrl = null;
+    let playbackTimer;
+    let currentExport = null;
+    let uploadSequence = 0;
+
+    function createStamps(settings, rotationOffsets) {
+      const { spacing, rotationJitter } = settings;
+      const stamps = [];
+      rayLengths.forEach((length, i) => {
+        const centerX = i === 0 ? 501 : 500;
+        const angle = i * angleStep * Math.PI / 180;
+        const count = Math.max(1, Math.floor(length / spacing));
+
+        for (let j = 0; j <= count; j++) {
+          const distance = length * j / count;
+          const offsets = rotationOffsets[i];
+          offsets[j] ??= Math.random() * 2 - 1;
+          const x = centerX - Math.cos(angle) * distance;
+          const y = centerY - Math.sin(angle) * distance;
+          const rotation = offsets[j] * rotationJitter;
+          stamps.push({ x, y, rotation, rayIndex: i, distance });
+        }
+      });
+
+      return stamps;
+    }
+
+    function prepareCanvas(settings) {
+      const { width, height, left, viewTop } = settings;
+      preview.width = width * pngScale;
+      preview.height = height * pngScale;
+      // preview.style.maxWidth = width + "px";
+      const ctx = preview.getContext("2d");
+      ctx.scale(pngScale, pngScale);
+      ctx.translate(-left, -viewTop);
+      return ctx;
+    }
+
+    function drawGuide() {
+      const ctx = prepareCanvas(readSettings());
+      ctx.strokeStyle = "#f2f2f2";
+      // ctx.strokeStyle = "#faed31";
+      ctx.lineWidth = 30;
+      ctx.lineCap = "butt";
+      ctx.beginPath();
+      rayLengths.forEach((length, i) => {
+        const centerX = i === 0 ? 501 : 500;
+        const angle = i * angleStep * Math.PI / 180;
+        ctx.moveTo(centerX, centerY);
+        ctx.lineTo(centerX - Math.cos(angle) * length, centerY - Math.sin(angle) * length);
+      });
+      ctx.stroke();
+    }
+
+    function drawPreview(icon, stamps, settings) {
+      const ctx = prepareCanvas(settings);
+      const { imageSize } = settings;
+      ctx.globalCompositeOperation = "overlay";
+      const scale = imageSize / Math.max(icon.naturalWidth, icon.naturalHeight);
+      const iconWidth = icon.naturalWidth * scale;
+      const iconHeight = icon.naturalHeight * scale;
+
+      for (const { x, y, rotation } of stamps) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(rotation * Math.PI / 180);
+        ctx.drawImage(icon, -iconWidth / 2, -iconHeight / 2, iconWidth, iconHeight);
+        ctx.restore();
+      }
+    }
+
+    function makeVectorStamp(root) {
+      const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      const viewportAttributes = new Set(["xmlns", "width", "height", "viewBox", "x", "y", "version", "preserveAspectRatio"]);
+      for (const attr of root.attributes) {
+        if (!viewportAttributes.has(attr.name) && attr.namespaceURI !== "http://www.w3.org/2000/xmlns/") {
+          group.setAttributeNS(attr.namespaceURI, attr.name, attr.value);
+        }
+      }
+      for (const child of root.childNodes) group.append(child.cloneNode(true));
+
+      group.querySelectorAll("script, foreignObject, animate, animateMotion, animateTransform, set")
+        .forEach((element) => element.remove());
+      for (const element of [group, ...group.querySelectorAll("*")]) {
+        for (const attr of Array.from(element.attributes)) {
+          const isLink = attr.localName === "href" || attr.localName === "src";
+          const isEmbeddedImage = element.localName === "image" && /^data:image\/(png|jpeg|gif|webp);/i.test(attr.value);
+          if (/^on/i.test(attr.localName) || (isLink && !attr.value.startsWith("#") && !isEmbeddedImage)) {
+            element.removeAttributeNode(attr);
+          }
+        }
+      }
+      return group;
+    }
+
+    function prefixVectorIds(group, prefix) {
+      const elements = [group, ...group.querySelectorAll("*")];
+      const ids = new Map();
+      for (const element of elements) {
+        const id = element.getAttribute("id");
+        if (!id) continue;
+        ids.set(id, prefix + id);
+        element.setAttribute("id", prefix + id);
+      }
+
+      function rewriteUrls(value) {
+        return value.replace(/url\(\s*(['"]?)#([^\s)'"]+)\1\s*\)/g, (reference, quote, id) =>
+          ids.has(id) ? `url(#${ids.get(id)})` : reference
+        );
+      }
+
+      for (const element of elements) {
+        for (const attr of element.attributes) {
+          if (attr.localName === "href" && ids.has(attr.value.slice(1)) && attr.value.startsWith("#")) {
+            attr.value = "#" + ids.get(attr.value.slice(1));
+          } else {
+            attr.value = rewriteUrls(attr.value);
+          }
+        }
+        if (element.localName === "style") {
+          element.textContent = rewriteUrls(element.textContent).replace(/([^{}]+)\{/g, (rule) =>
+            rule.replace(/#([\w-]+)/g, (selector, id) => ids.has(id) ? "#" + ids.get(id) : selector)
+          );
+        }
+      }
+    }
+
+    function fitVectorStamp(icon, viewBox, imageSize) {
+      const [minX, minY, boxWidth, boxHeight] = viewBox[2] > 0 && viewBox[3] > 0
+        ? viewBox : [0, 0, icon.naturalWidth, icon.naturalHeight];
+      const scale = imageSize / Math.max(boxWidth, boxHeight);
+      return `scale(${scale}) translate(${-minX - boxWidth / 2} ${-minY - boxHeight / 2})`;
+    }
+
+    function svgBlob(content, { width, height }) {
+      return new Blob([`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+        ${content}
+      </svg>`], { type: "image/svg+xml" });
+    }
+
+    function buildSvg(root, icon, viewBox, stamps, settings) {
+      const { imageSize, spacing, rotationJitter, left, viewTop } = settings;
+      const fit = fitVectorStamp(icon, viewBox, imageSize);
+      const original = makeVectorStamp(root);
+      const serializer = new XMLSerializer();
+      const copies = stamps.map(({ x, y, rotation }, i) => {
+        const group = original.cloneNode(true);
+        prefixVectorIds(group, `stamp-${i}-`);
+        return `<g transform="translate(${x - left} ${y - viewTop}) rotate(${rotation}) ${fit}" style="mix-blend-mode:overlay">${serializer.serializeToString(group)}</g>`;
+      });
+
+      const labels = [
+        `Icon size: ${imageSize} px`,
+        `Icon spacing: ${spacing} px`,
+        `Random rotation: ±${rotationJitter}°`,
+      ];
+      const text = labels.map((label, i) => `<text x="16" y="${22 + i * 16}">${label}</text>`);
+      return svgBlob(`
+        <g style="isolation:isolate">${copies.join("\n")}</g>
+        <g fill="#222222" font-family="Arial, sans-serif" font-size="13">${text.join("\n")}</g>
+      `, settings);
+    }
+
+    function buildAnimationSvg({ root, icon, viewBox, stamps, settings }) {
+      const { left, viewTop, imageSize } = settings;
+      const fit = fitVectorStamp(icon, viewBox, imageSize);
+      const original = makeVectorStamp(root);
+      prefixVectorIds(original, "animated-source-");
+      const source = new XMLSerializer().serializeToString(original);
+      const { delay, fade, sweep, hold, fadeOutDelay } = animationTiming;
+      const openEnd = delay + sweep;
+      const closeStart = openEnd + hold;
+      const closeEnd = closeStart + sweep;
+      const keyTimes = (times) => times.map((time) => time / animationDuration).join(";");
+      const rotationTimes = keyTimes([0, delay, openEnd, closeStart, closeEnd, animationDuration]);
+      const opacityTimes = keyTimes([0, delay, delay + fade, closeEnd + fadeOutDelay, animationDuration]);
+      const linear = "0 0 1 1";
+      const easeOut = "0.333333 1 0.666667 1";
+      const splines = [linear, easeOut, linear, easeOut, linear].join(";");
+      const duration = `${animationDuration}ms`;
+
+      function rotateAnimation(start, open, end) {
+        return `<animateTransform attributeName="transform" type="rotate" dur="${duration}"
+          values="${[start, start, open, open, end, end].join(";")}" keyTimes="${rotationTimes}"
+          calcMode="spline" keySplines="${splines}" fill="freeze"/>`;
+      }
+
+      const rays = rayLengths.map(() => []);
+      for (const { rayIndex, distance, rotation } of stamps) {
+        const angle = rayIndex * angleStep;
+        rays[rayIndex].push(`<g transform="translate(${-distance} 0)" style="mix-blend-mode:overlay">
+          <g>${rotateAnimation(rotation, rotation - angle, rotation - 180)}
+            <use href="#animated-icon" xlink:href="#animated-icon"/>
+          </g>
+        </g>`);
+      }
+
+      const animatedRays = rays.map((ray, i) => `
+        <g transform="translate(${(i === 0 ? 501 : 500) - left} ${centerY - viewTop})">
+          <g>${rotateAnimation(0, i * angleStep, 180)}${ray.join("")}</g>
+        </g>`);
+      return svgBlob(`
+        <defs><g id="animated-icon" transform="${fit}">${source}</g></defs>
+        <g opacity="0" style="isolation:isolate">
+          <animate attributeName="opacity" values="0;0;1;1;0" keyTimes="${opacityTimes}"
+            dur="${duration}" fill="freeze"/>
+          ${animatedRays.join("")}
+        </g>
+      `, settings);
+    }
+
+    function setDownloadEnabled(enabled) {
+      pngButton.disabled = !enabled;
+      svgButton.disabled = !enabled;
+      playButton.disabled = !enabled;
+      animationButton.disabled = !enabled;
+    }
+
+    function stopPlayback() {
+      clearTimeout(playbackTimer);
+      animationPreview.hidden = true;
+      animationPreview.removeAttribute("src");
+      if (playbackUrl) URL.revokeObjectURL(playbackUrl);
+      playbackUrl = null;
+      preview.hidden = false;
+      playButton.textContent = "Play Animation";
+    }
+
+    animationPreview.addEventListener("error", () => {
+      if (!playbackUrl) return;
+      stopPlayback();
+      status.textContent = "Could not play the animation.";
+    });
+
+    playButton.addEventListener("click", () => {
+      if (!currentExport) return;
+      if (playbackUrl) {
+        stopPlayback();
+        return;
+      }
+
+      try {
+        playbackUrl = URL.createObjectURL(buildAnimationSvg(currentExport));
+        // animationPreview.style.maxWidth = currentExport.settings.width + "px";
+        animationPreview.src = playbackUrl;
+        animationPreview.hidden = false;
+        preview.hidden = true;
+        playButton.textContent = "Stop Animation";
+        playbackTimer = setTimeout(stopPlayback, animationDuration + 100);
+      } catch {
+        stopPlayback();
+        status.textContent = "Could not play the animation.";
+      }
+    });
+
+    animationButton.addEventListener("click", () => {
+      if (!currentExport) return;
+      try {
+        download(buildAnimationSvg(currentExport), currentExport.name + "-animated.svg");
+      } catch {
+        status.textContent = "Could not save the animated SVG.";
+      }
+    });
+
+    function refreshPattern() {
+      const settings = readSettings();
+      const stamps = createStamps(settings, currentExport.rotationOffsets);
+      drawPreview(currentExport.icon, stamps, settings);
+      Object.assign(currentExport, { settings, stamps });
+    }
+
+    for (const input of sliders) {
+      const output = input.parentElement.querySelector("output");
+      input.addEventListener("input", () => {
+        output.value = input.dataset.prefix + input.value + input.dataset.unit;
+        stopPlayback();
+        if (currentExport) refreshPattern();
+        else drawGuide();
+      });
+    }
+
+    drawGuide();
+
+    upload.addEventListener("change", async () => {
+      const file = upload.files[0];
+      if (!file) return;
+      const sequence = ++uploadSequence;
+      stopPlayback();
+      currentExport = null;
+      drawGuide();
+      setDownloadEnabled(false);
+      status.textContent = "Loading SVG…";
+
+      try {
+        const source = await file.text();
+        let parsed = new DOMParser().parseFromString(source, "image/svg+xml");
+        let root = parsed.documentElement;
+        if (root.localName !== "svg" || parsed.querySelector("parsererror")) {
+          throw new Error("Invalid SVG");
+        }
+
+        const svgNamespace = "http://www.w3.org/2000/svg";
+        if (!root.namespaceURI) {
+          root.setAttribute("xmlns", svgNamespace);
+          parsed = new DOMParser().parseFromString(new XMLSerializer().serializeToString(root), "image/svg+xml");
+          root = parsed.documentElement;
+        } else if (root.namespaceURI !== svgNamespace) {
+          throw new Error("Invalid SVG namespace");
+        }
+
+        const viewBox = (root.getAttribute("viewBox") || "").trim().split(/[ ,]+/).map(Number);
+        const [,, viewWidth, viewHeight] = viewBox;
+        if (viewWidth > 0 && viewHeight > 0) {
+          const scale = Number(iconSizeSlider.max) * pngScale / Math.max(viewWidth, viewHeight);
+          root.setAttribute("width", Math.max(1, viewWidth * scale));
+          root.setAttribute("height", Math.max(1, viewHeight * scale));
+        }
+
+        const markup = new XMLSerializer().serializeToString(root);
+        const bytes = new TextEncoder().encode(markup);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i += 8192) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+        }
+        const iconSource = "data:image/svg+xml;base64," + btoa(binary);
+        const icon = new Image();
+        icon.src = iconSource;
+        await icon.decode();
+        if (sequence !== uploadSequence) return;
+
+        currentExport = {
+          root, icon, viewBox,
+          rotationOffsets: rayLengths.map(() => []),
+          name: "YourName",
+          // name: file.name.replace(/\.svg$/i, "") + "-radial",
+        };
+        refreshPattern();
+        preview.hidden = false;
+        setDownloadEnabled(true);
+        status.textContent = file.name;
+      } catch {
+        if (sequence === uploadSequence) status.textContent = "Could not read the SVG. Please choose another SVG file.";
+      }
+    });
+
+    function download(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    }
+
+    svgButton.addEventListener("click", () => {
+      if (!currentExport) return;
+      const { root, icon, viewBox, stamps, settings, name } = currentExport;
+      try {
+        download(buildSvg(root, icon, viewBox, stamps, settings), name + ".svg");
+      } catch {
+        status.textContent = "Could not save the SVG.";
+      }
+    });
+
+    pngButton.addEventListener("click", () => {
+      if (!currentExport) return;
+      const { name } = currentExport;
+      preview.toBlob((blob) => {
+        if (blob) download(blob, name + ".png");
+        else status.textContent = "Could not create the PNG.";
+      }, "image/png");
+    });
+  }
+  </script>
+</body>
+</html>
